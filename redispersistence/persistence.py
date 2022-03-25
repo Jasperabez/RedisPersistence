@@ -5,7 +5,6 @@ from typing import Any, DefaultDict, Dict, Optional, Tuple
 from redis import Redis
 
 from telegram.ext import BasePersistence
-from telegram.utils.types import ConversationDict
 
 
 class RedisPersistence(BasePersistence):
@@ -18,7 +17,6 @@ class RedisPersistence(BasePersistence):
 		self.user_data: Optional[DefaultDict[int, Dict]] = None
 		self.chat_data: Optional[DefaultDict[int, Dict]] = None
 		self.bot_data: Optional[Dict] = None
-		self.conversations: Optional[Dict[str, Dict[Tuple, Any]]] = None
 
 	def load_redis(self) -> None:
 		try:
@@ -29,9 +27,7 @@ class RedisPersistence(BasePersistence):
 				self.chat_data = defaultdict(dict, data['chat_data'])
 				# For backwards compatibility with files not containing bot data
 				self.bot_data = data.get('bot_data', {})
-				self.conversations = data['conversations']
 			else:
-				self.conversations = dict()
 				self.user_data = defaultdict(dict)
 				self.chat_data = defaultdict(dict)
 				self.bot_data = {}
@@ -40,7 +36,6 @@ class RedisPersistence(BasePersistence):
 
 	def dump_redis(self) -> None:
 		data = {
-			'conversations': self.conversations,
 			'user_data': self.user_data,
 			'chat_data': self.chat_data,
 			'bot_data': self.bot_data,
@@ -71,24 +66,6 @@ class RedisPersistence(BasePersistence):
 		else:
 			self.load_redis()
 		return deepcopy(self.bot_data)  # type: ignore[arg-type]
-
-	def get_conversations(self, name: str) -> ConversationDict:
-		'''Returns the conversations from the pickle on Redis if it exsists or an empty dict.'''
-		if self.conversations:
-			pass
-		else:
-			self.load_redis()
-		return self.conversations.get(name, {}).copy()  # type: ignore[union-attr]
-
-	def update_conversation(self, name: str, key: Tuple[int, ...], new_state: Optional[object]) -> None:
-		'''Will update the conversations for the given handler and depending on :attr:`on_flush` save the pickle on Redis.'''
-		if not self.conversations:
-			self.conversations = dict()
-		if self.conversations.setdefault(name, {}).get(key) == new_state:
-			return
-		self.conversations[name][key] = new_state
-		if not self.on_flush:
-			self.dump_redis()
 
 	def update_user_data(self, user_id: int, data: Dict) -> None:
 		'''Will update the user_data and depending on :attr:`on_flush` save the pickle on Redis.'''
